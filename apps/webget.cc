@@ -22,20 +22,18 @@ void get_URL(const string &host, const string &path) {
     const std::string delimiter("\r\n");  // Use CRLF rather than LF
 
     const std::string requests = std::string("GET ") + path + std::string(" HTTP/1.1") + delimiter +
-                                 std::string("Host: ") + host + delimiter +
-                                 std::string("Connection: close") + delimiter +
-                                 delimiter;
+                                 std::string("Host: ") + host + delimiter + std::string("Connection: close") +
+                                 delimiter + delimiter;
 
     tcp_socket.connect(tcp_addr);
 
     tcp_socket.write(requests);
 
-
     while (!tcp_socket.eof()) {
         /**
          * Use buffer for standard output stream.
          * Therefore it requires flush on each `tcp_socket.read()` calls.
-        */
+         */
         std::cout << tcp_socket.read() << std::flush;
     }
 
