@@ -8,15 +8,29 @@
 // You will need to add private members to the class declaration in `byte_stream.hh`
 
 template <typename... Targs>
-void DUMMY_CODE(Targs &&... /* unused */) {}
+void DUMMY_CODE(Targs &&.../* unused */) {}
 
 using namespace std;
 
-ByteStream::ByteStream(const size_t capacity) { DUMMY_CODE(capacity); }
+ByteStream::ByteStream(const size_t capacity) {
+    _is_writing = false;
+    _buffer = std::string("");
+    _capacity = capacity;
+    _remaining_capacity = 0U;
+    _bytes_written = 0U;
+    _bytes_read = 0U;
+}
 
 size_t ByteStream::write(const string &data) {
-    DUMMY_CODE(data);
-    return {};
+    int write_length = std::min<std::size_t>(data.length(), _remaining_capacity);
+
+    try {
+        _is_writing = true;
+        _buffer.append(data.substr(0U, write_length));
+    } catch (const std::exception &e) {
+        return update_write(0U);
+    }
+    return update_write(write_length);
 }
 
 //! \param[in] len bytes will be copied from the output side of the buffer
@@ -36,13 +50,16 @@ std::string ByteStream::read(const size_t len) {
     return {};
 }
 
-void ByteStream::end_input() {}
+void ByteStream::end_input() {
+    _is_writing = false;
+    return;
+}
 
 bool ByteStream::input_ended() const { return {}; }
 
-size_t ByteStream::buffer_size() const { return {}; }
+size_t ByteStream::buffer_size() const { return _capacity; }
 
-bool ByteStream::buffer_empty() const { return {}; }
+bool ByteStream::buffer_empty() const { return _capacity == _remaining_capacity; }
 
 bool ByteStream::eof() const { return false; }
 
@@ -50,4 +67,18 @@ size_t ByteStream::bytes_written() const { return {}; }
 
 size_t ByteStream::bytes_read() const { return {}; }
 
-size_t ByteStream::remaining_capacity() const { return {}; }
+size_t ByteStream::remaining_capacity() const { return _remaining_capacity; }
+
+size_t ByteStream::update_read(size_t length_read) {
+    _bytes_read += length_read;
+    _remaining_capacity -= length_read;
+
+    return length_read;
+}
+
+size_t ByteStream::update_write(size_t length_written) {
+    _bytes_written += length_written;
+    _remaining_capacity += length_written;
+
+    return length_written;
+}
