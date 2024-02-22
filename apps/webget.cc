@@ -16,9 +16,43 @@ void get_URL(const string &host, const string &path) {
     // Then you'll need to print out everything the server sends back,
     // (not just one call to read() -- everything) until you reach
     // the "eof" (end of file).
+    TCPSocket tcp_socket;
+    Address tcp_addr(host, std::string("http"));
 
-    cerr << "Function called: get_URL(" << host << ", " << path << ").\n";
-    cerr << "Warning: get_URL() has not been implemented yet.\n";
+    const std::string delimiter("\r\n");  // Use CRLF rather than LF
+
+    const std::string requests = std::string("GET ") + path + std::string(" HTTP/1.1") + delimiter +
+                                 std::string("Host: ") + host + delimiter +
+                                 std::string("Connection: close") + delimiter +
+                                 delimiter;
+
+    try {
+        tcp_socket.connect(tcp_addr);
+    } catch (const std::exception &general_error) {
+        std::cerr << general_error.what() << std::endl;
+    }
+
+    try {
+        tcp_socket.write(requests);
+    } catch (const std::exception &general_error) {
+        std::cerr << general_error.what() << std::endl;
+    }
+
+    std::string received;
+
+    while (!tcp_socket.eof()) {
+        received.clear();
+        try {
+            received.append(tcp_socket.read());
+        } catch (const std::exception &general_error) {
+            std::cerr << general_error.what() << std::endl;
+        }
+
+        std::cout << received;
+    }
+
+    tcp_socket.close();
+    return;
 }
 
 int main(int argc, char *argv[]) {
