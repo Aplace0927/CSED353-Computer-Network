@@ -16,14 +16,15 @@ using namespace std;
 ByteStream::ByteStream(const size_t capacity) : _capacity(capacity), _remaining_capacity(capacity) {}
 
 size_t ByteStream::write(const string &data) {
-    const size_t write_length = std::min<std::size_t>(data.length(), remaining_capacity());
+    const size_t write_length =
+        std::min<std::size_t>(data.length(), remaining_capacity());  // Write as many as will fit
 
     try {
         _buffer.append(data.substr(0U, write_length));
     } catch (const std::exception &e) {
-        return update_write(0U);
+        return update_write(0U);  // If failed to append, return "nothing written"
     }
-    return update_write(write_length);
+    return update_write(write_length);  // Update the number of bytes written and the remaining capacity and return
 }
 
 //! \param[in] len bytes will be copied from the output side of the buffer
@@ -31,9 +32,9 @@ string ByteStream::peek_output(const size_t len) const {
     const size_t peek_length = std::min<std::size_t>(len, buffer_size());
 
     try {
-        return _buffer.substr(0U, peek_length);
+        return _buffer.substr(0U, peek_length);  // Peek at next "len" bytes of the stream
     } catch (const std::exception &e) {
-        return std::string("");
+        return std::string("");  // If failed to peek, return an empty string
     }
 }
 
@@ -42,12 +43,12 @@ void ByteStream::pop_output(const size_t len) {
     const size_t read_length = std::min<std::size_t>(len, buffer_size());
 
     try {
-        _buffer.erase(0, read_length);
+        _buffer.erase(0, read_length);  // Remove bytes from the buffer
     } catch (const std::exception &e) {
-        update_read(0U);
+        update_read(0U);  // If failed to erase, return "nothing read"
         return;
     }
-    update_read(read_length);
+    update_read(read_length);  // Update the number of bytes read and the remaining capacity
     return;
 }
 
@@ -60,14 +61,14 @@ std::string ByteStream::read(const size_t len) {
     std::string read_data;
 
     try {
-        read_data = _buffer.substr(0, read_length);
-        _buffer.erase(0, read_length);
+        read_data = _buffer.substr(0, read_length);  // Read as many as will fit
+        _buffer.erase(0, read_length);               // Pop it
     } catch (const std::exception &e) {
-        update_read(0U);
-        return std::string("");
+        update_read(0U);         // If failed to read, return "nothing read" and
+        return std::string("");  // Return an empty string
     }
-    update_read(read_length);
-    return read_data;
+    update_read(read_length);  // Update the number of bytes read and the remaining capacity
+    return read_data;          // Return the read data
 }
 
 void ByteStream::end_input() {
@@ -90,6 +91,7 @@ size_t ByteStream::bytes_read() const { return _bytes_read; }
 size_t ByteStream::remaining_capacity() const { return _remaining_capacity; }
 
 size_t ByteStream::update_read(size_t length_read) {
+    // Update the remaining capacity and the total number of bytes read at once
     _bytes_read += length_read;
     _remaining_capacity += length_read;
 
@@ -97,6 +99,7 @@ size_t ByteStream::update_read(size_t length_read) {
 }
 
 size_t ByteStream::update_write(size_t length_written) {
+    // Update the remaining capacity and the total number of bytes written at once
     _bytes_written += length_written;
     _remaining_capacity -= length_written;
 

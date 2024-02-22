@@ -17,16 +17,23 @@ class ByteStream {
     // that's a sign that you probably want to keep exploring
     // different approaches.
 
-    bool _error{};  //!< Flag indicating that the stream suffered an error.
-    bool _is_writing = true;
+    bool _error{};            //!< Flag indicating that the stream suffered an error.
+    bool _is_writing = true;  //!< Flag indicating that the stream is still accepting input
 
-    std::string _buffer = std::string("");
-    size_t _capacity;
-    size_t _remaining_capacity;
-    size_t _bytes_written = 0U;
-    size_t _bytes_read = 0U;
+    std::string _buffer = std::string("");  //!< Initialize the buffer with an empty string
+    size_t _capacity;                       //!< The maximum number of bytes that the buffer can hold
+    size_t _remaining_capacity;             //!< The number of bytes that the buffer can still hold until it is full
+    size_t _bytes_written = 0U;             //!< The total number of bytes written to the buffer
+    size_t _bytes_read = 0U;                //!< The total number of bytes read from the buffer
 
+    //! \fn update_write
+    //! Update the remaining capacity and the total number of bytes written at once
+    //! \returns the number of bytes written
     size_t update_write(size_t length_written);
+
+    //! \fn update_read
+    //! Update the remaining capacity and the total number of bytes read at once
+    //! \returns the number of bytes read
     size_t update_read(size_t length_read);
 
   public:
