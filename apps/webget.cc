@@ -26,29 +26,17 @@ void get_URL(const string &host, const string &path) {
                                  std::string("Connection: close") + delimiter +
                                  delimiter;
 
-    try {
-        tcp_socket.connect(tcp_addr);
-    } catch (const std::exception &general_error) {
-        std::cerr << general_error.what() << std::endl;
-    }
+    tcp_socket.connect(tcp_addr);
 
-    try {
-        tcp_socket.write(requests);
-    } catch (const std::exception &general_error) {
-        std::cerr << general_error.what() << std::endl;
-    }
+    tcp_socket.write(requests);
 
-    std::string received;
 
     while (!tcp_socket.eof()) {
-        received.clear();
-        try {
-            received.append(tcp_socket.read());
-        } catch (const std::exception &general_error) {
-            std::cerr << general_error.what() << std::endl;
-        }
-
-        std::cout << received;
+        /**
+         * Use buffer for standard output stream.
+         * Therefore it requires flush on each `tcp_socket.read()` calls.
+        */
+        std::cout << tcp_socket.read() << std::flush;
     }
 
     tcp_socket.close();
