@@ -18,13 +18,13 @@ class ByteStream {
     // different approaches.
 
     bool _error{};  //!< Flag indicating that the stream suffered an error.
-    bool _is_writing;
-    
-    std::string _buffer;
+    bool _is_writing = true;
+
+    std::string _buffer = std::string("");
     size_t _capacity;
     size_t _remaining_capacity;
-    size_t _bytes_written;
-    size_t _bytes_read;
+    size_t _bytes_written = 0U;
+    size_t _bytes_read = 0U;
 
     size_t update_write(size_t length_written);
     size_t update_read(size_t length_read);
