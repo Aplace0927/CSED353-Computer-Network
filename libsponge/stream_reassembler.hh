@@ -3,17 +3,39 @@
 
 #include "byte_stream.hh"
 
+#include <algorithm>
 #include <cstdint>
+#include <set>
 #include <string>
+#include <vector>
 
 //! \brief A class that assembles a series of excerpts from a byte stream (possibly out of order,
 //! possibly overlapping) into an in-order byte stream.
 class StreamReassembler {
   private:
-    // Your code here -- add private members as necessary.
+    class Datagram {
+      public:
+        size_t _from;
+        std::string _data;
+
+        Datagram() : _from(0), _data("") {}
+        Datagram(size_t from, std::string &data) : _from(from), _data(data) {}
+
+        size_t from() const { return _from; }
+        size_t to() { return _from + _data.length(); }
+        size_t len() { return _data.length(); }
+
+        friend bool operator<(const Datagram &d1, const Datagram &d2) { return d1._from < d2._from; }
+    };
+
+    size_t _unread_until = 0;
+    size_t _unassm_until = 0;
+    size_t _eof_at = 0;
 
     ByteStream _output;  //!< The reassembled in-order byte stream
     size_t _capacity;    //!< The maximum number of bytes
+
+    std::set<Datagram> _datagram_arrived;
 
   public:
     //! \brief Construct a `StreamReassembler` that will store up to `capacity` bytes.
