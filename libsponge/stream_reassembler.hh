@@ -19,7 +19,7 @@ class StreamReassembler {
         std::string _data;
 
         Datagram() : _from(0), _data("") {}
-        Datagram(size_t from, std::string &data) : _from(from), _data(data) {}
+        Datagram(size_t from, std::string data) : _from(from), _data(data) {}
 
         size_t from() const { return _from; }
         size_t to() { return _from + _data.length(); }
