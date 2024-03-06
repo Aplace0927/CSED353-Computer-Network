@@ -1,6 +1,5 @@
 #include "stream_reassembler.hh"
 
-#include <iostream>
 // Dummy implementation of a stream reassembler.
 
 // For Lab 1, please replace with a real implementation that passes the
@@ -63,24 +62,9 @@ void StreamReassembler::push_substring(const string &data, const size_t index, c
      *      set data as union of both datagrams
      */
 
-    auto datagram_iter_max =
-        [](std::set<StreamReassembler::Datagram>::iterator it1,
-           std::set<StreamReassembler::Datagram>::iterator it2) -> std::set<StreamReassembler::Datagram>::iterator {
-        return (std::distance(it1, it2) > 0) ? it2 : it1;
-    };
-
-    auto datagram_iter_min =
-        [](std::set<StreamReassembler::Datagram>::iterator it1,
-           std::set<StreamReassembler::Datagram>::iterator it2) -> std::set<StreamReassembler::Datagram>::iterator {
-        return (std::distance(it1, it2) > 0) ? it1 : it2;
-    };
-
-    std::set<StreamReassembler::Datagram>::iterator lower_index = datagram_iter_max(
-        _datagram_arrived.begin(), _datagram_arrived.lower_bound(Datagram(curr.from(), std::string("")))--);
-    std::set<StreamReassembler::Datagram>::iterator upper_index = datagram_iter_min(
-        _datagram_arrived.end(), _datagram_arrived.upper_bound(Datagram(curr.to(), std::string("")))++);
-
-    for (std::set<StreamReassembler::Datagram>::iterator target = lower_index; target != upper_index; target++) {
+    for (std::set<StreamReassembler::Datagram>::iterator target = _datagram_arrived.begin();
+         target != _datagram_arrived.end();
+         target++) {
         /**
          * `target` datagram does not have intersection with recieved datagram
          */
