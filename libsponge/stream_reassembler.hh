@@ -28,9 +28,8 @@ class StreamReassembler {
 
         friend bool operator<(const Datagram &d1, const Datagram &d2) { return d1._from < d2._from; }
     };
-
-    size_t _eof_at = 0;
-    size_t _unreasm = 0;
+    size_t _eof_at = static_cast<size_t>(-1);  // "Indicating" eof not recieved as static casting -1
+    size_t _unreasm = 0UL;
 
     ByteStream _output;  //!< The reassembled in-order byte stream
     size_t _capacity;    //!< The maximum number of bytes
