@@ -15,25 +15,47 @@
 class StreamReassembler {
   private:
     class Datagram {
+        /**
+         * Defining datagram: storing its index and data as a single class.
+         */
       public:
-        size_t _from;
-        std::string _data;
+        size_t _from;       // Starting index
+        std::string _data;  // Actual data
 
-        Datagram() : _from(0), _data("") {}
+        /**
+         * Constructor of `Datagram`.
+         * With its starting index and actual data
+         */
         Datagram(size_t from, std::string data) : _from(from), _data(data) {}
 
+        /**
+         * Interface functions to access
+         * string properties when stitching.
+         */
         size_t from() const { return _from; }
         size_t to() const { return _from + _data.length(); }
         size_t len() const { return _data.length(); }
 
+        /**
+         * Operator overloaded for managing `Datagram` with
+         *  `std::set`, which is internally sorted using red-black tree.
+         */
         friend bool operator<(const Datagram &d1, const Datagram &d2) { return d1._from < d2._from; }
     };
-    size_t _eof_at = static_cast<size_t>(-1);  // "Indicating" eof not recieved as static casting -1
-    size_t _unreasm = 0UL;
+    size_t _eof_at = static_cast<size_t>(
+        -1);  // "Indicating" eof not recieved as static casting -1 (Bit pattern would be 0xFFFF`FFFF`FFFF`FFFF)
+    size_t _unreasm = 0UL;  // Initially zero bytes had reassembled
 
     ByteStream _output;  //!< The reassembled in-order byte stream
     size_t _capacity;    //!< The maximum number of bytes
 
+    /**
+     * Managing recieved datagrams using `std::set`,
+     * order defined by overloaded `operator<`
+     *
+     * The smaller index of `Datagram::_from` will place
+     * `Datagram` at the beggining side of `std::set`
+     */
     std::set<Datagram> _datagram_arrived;
 
   public:
