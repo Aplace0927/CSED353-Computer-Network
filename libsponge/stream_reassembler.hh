@@ -28,8 +28,6 @@ class StreamReassembler {
         friend bool operator<(const Datagram &d1, const Datagram &d2) { return d1._from < d2._from; }
     };
 
-    size_t _unread_until = 0;
-    size_t _unassm_until = 0;
     size_t _eof_at = 0;
 
     ByteStream _output;  //!< The reassembled in-order byte stream

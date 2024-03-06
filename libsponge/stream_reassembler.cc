@@ -20,7 +20,7 @@ StreamReassembler::StreamReassembler(const size_t capacity)
 //! contiguous substrings and writes them into the output stream in order.
 void StreamReassembler::push_substring(const string &data, const size_t index, const bool eof) {
     /* Ignore far-future packet (that cannot be stored on buffer)*/
-    if (index >= _unread_until + _capacity) {
+    if (index >= _output.bytes_read() + _capacity) {
         return;
     }
 
@@ -31,12 +31,12 @@ void StreamReassembler::push_substring(const string &data, const size_t index, c
 
     /* Trim out unacceptable / already read substrings - for extreme cases*/
     Datagram curr(index, data);
-    if (curr.from() < _unread_until + _capacity and _unread_until + _capacity <= curr.to()) {
-        curr._data = curr._data.substr(0, max(0UL, _unread_until + _capacity - curr.from()));
+    if (curr.from() < _output.bytes_read() + _capacity and _output.bytes_read() + _capacity <= curr.to()) {
+        curr._data = curr._data.substr(0, max(0UL, _output.bytes_read() + _capacity - curr.from()));
     }
-    if (curr.from() < _unread_until and _unread_until <= curr.to()) {
-        curr._data = curr._data.substr(_unread_until - curr.from());
-        curr._from = _unread_until;
+    if (curr.from() < _output.bytes_read() and _output.bytes_read() <= curr.to()) {
+        curr._data = curr._data.substr(_output.bytes_read() - curr.from());
+        curr._from = _output.bytes_read();
     }
 
     /**
@@ -54,18 +54,13 @@ void StreamReassembler::push_substring(const string &data, const size_t index, c
      *      set data as union of both datagrams
      */
 
-    while (_datagram_arrived.empty() == false and _datagram_arrived.begin()->from() == _unread_until) {
-        /**
-         * FIX: Fix not compatible error on `stream_reassembler.cc:61`
-         */
-        _unread_until += _datagram_arrived.begin()->len();
-
+    while (_datagram_arrived.empty() == false and _datagram_arrived.begin()->from() == _output.bytes_read()) {
         _output.write(_datagram_arrived.begin()->_data);
         _datagram_arrived.erase(_datagram_arrived.begin());
     }
 
     /* Assemble until EOF found */
-    if (_eof_at == _unread_until and _eof_at != 0) {
+    if (_eof_at == _output.bytes_read() and _eof_at != 0) {
         _output.end_input();
     }
 }
