@@ -20,19 +20,22 @@ StreamReassembler::StreamReassembler(const size_t capacity)
 //! possibly out-of-order, from the logical stream, and assembles any newly
 //! contiguous substrings and writes them into the output stream in order.
 void StreamReassembler::push_substring(const string &data, const size_t index, const bool eof) {
+    /* EOF packet found*/
+
+    if (eof) {
+        _eof_at = index + data.length();
+        if (data.length() == 0)  // Empty packet but EOF
+        {
+            _output.end_input();
+            return;
+        }
+    }
     /**
      * Ignore far-future packet (that cannot be stored on buffer) OR
      * Ignore already assembled packet
      */
-    cout << "NOW STREAM STATUS: UNREAD: " << _output.bytes_read() << " UNASM: " << _output.bytes_written() << endl;
-    if (index >= _output.bytes_read() + _capacity || index + data.length() <= _output.bytes_written()) {
+    if (index >= _output.bytes_read() + _capacity || index + data.length() <= _output.bytes_written() || data.empty()) {
         return;
-    }
-
-    /* EOF packet found*/
-    if (eof) {
-        cout << "EOF FOUND @ " << index + data.length() << endl;
-        _eof_at = index + data.length();
     }
 
     /* Trim out unacceptable / already read substrings - for extreme cases*/
@@ -45,7 +48,6 @@ void StreamReassembler::push_substring(const string &data, const size_t index, c
         curr._from = _output.bytes_written();
     }
 
-    cout << "PUSHED & TRIMMED: " << curr.from() << " ~ " << curr.to() << " " << curr._data << endl;
     /**
      * TODO: Stitch Bytes
      *
@@ -76,16 +78,16 @@ void StreamReassembler::push_substring(const string &data, const size_t index, c
     std::set<StreamReassembler::Datagram>::iterator lower_index = datagram_iter_max(
         _datagram_arrived.begin(), _datagram_arrived.lower_bound(Datagram(curr.from(), std::string("")))--);
     std::set<StreamReassembler::Datagram>::iterator upper_index = datagram_iter_min(
-        _datagram_arrived.begin(), _datagram_arrived.upper_bound(Datagram(curr.to(), std::string("")))++);
+        _datagram_arrived.end(), _datagram_arrived.upper_bound(Datagram(curr.to(), std::string("")))++);
 
     for (std::set<StreamReassembler::Datagram>::iterator target = lower_index; target != upper_index; target++) {
         /**
          * `target` datagram does not have intersection with recieved datagram
          */
-        if (target->to() < curr.from() or curr.to() < target->from()) {
+
+        if (target->to() <= curr.from() or curr.to() <= target->from()) {
             continue;
         }
-
         if (curr.from() < target->from() and curr.to() <= target->to()) {
             curr._data = curr._data.substr(0, target->from() - curr.from()) + target->_data;
         } else if (target->from() <= curr.from() and target->to() < curr.to()) {
@@ -96,25 +98,20 @@ void StreamReassembler::push_substring(const string &data, const size_t index, c
         curr._from = min(curr.from(), target->from());
 
         _unreasm -= target->len();
-        cout << "REMOVING " << target->from() << " ~ " << target->to() << " " << target->_data << endl;
         _datagram_arrived.erase(target);
     }
 
     _unreasm += curr.len();
-    cout << "INSERTING " << curr.from() << " ~ " << curr.to() << " " << curr._data << endl;
     _datagram_arrived.insert(curr);
 
-    while (_datagram_arrived.empty() == false and _datagram_arrived.begin()->from() == _output.bytes_read()) {
-        cout << "WRITE " << _datagram_arrived.begin()->from() << " ~ " << _datagram_arrived.begin()->to() << " "
-             << _datagram_arrived.begin()->_data << endl;
+    while (_datagram_arrived.empty() == false and _datagram_arrived.begin()->from() == _output.bytes_written()) {
         _output.write(_datagram_arrived.begin()->_data);
-        cout << "NOW STREAM STATUS: UNREAD: " << _output.bytes_read() << " UNASM: " << _output.bytes_written() << endl;
+        _unreasm -= _datagram_arrived.begin()->len();
         _datagram_arrived.erase(_datagram_arrived.begin());
     }
 
     /* Assemble until EOF found */
-    if (_eof_at == _output.bytes_written() and _eof_at != 0) {
-        cout << "END INPUT @ " << _eof_at << endl;
+    if (_eof_at == _output.bytes_written() and _eof_at != static_cast<size_t>(-1)) {
         _output.end_input();
     }
 }
