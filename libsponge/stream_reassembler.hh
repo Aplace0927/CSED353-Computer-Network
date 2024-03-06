@@ -23,13 +23,14 @@ class StreamReassembler {
         Datagram(size_t from, std::string data) : _from(from), _data(data) {}
 
         size_t from() const { return _from; }
-        size_t to() { return _from + _data.length(); }
-        size_t len() { return _data.length(); }
+        size_t to() const { return _from + _data.length(); }
+        size_t len() const { return _data.length(); }
 
         friend bool operator<(const Datagram &d1, const Datagram &d2) { return d1._from < d2._from; }
     };
 
     size_t _eof_at = 0;
+    size_t _unreasm = 0;
 
     ByteStream _output;  //!< The reassembled in-order byte stream
     size_t _capacity;    //!< The maximum number of bytes
