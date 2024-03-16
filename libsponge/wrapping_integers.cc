@@ -29,7 +29,7 @@ WrappingInt32 wrap(uint64_t n, WrappingInt32 isn) {
 //! and the other stream runs from the remote TCPSender to the local TCPReceiver and
 //! has a different ISN.
 uint64_t unwrap(WrappingInt32 n, WrappingInt32 isn, uint64_t checkpoint) {
-    uint64_t absseq = ((checkpoint >> 32) << 32) | static_cast<uint32_t>(n.raw_value() - isn.raw_value());
+    uint64_t absseq = ((checkpoint >> 32) << 32) | static_cast<uint32_t>(n - isn);
     if (labs(absseq + (1ULL << 32) - checkpoint) < labs(absseq - checkpoint)) {
         return absseq + (1ULL << 32);
     }
