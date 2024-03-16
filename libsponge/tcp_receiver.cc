@@ -29,6 +29,12 @@ void TCPReceiver::segment_received(const TCPSegment &seg) {
     return;
 }
 
-optional<WrappingInt32> TCPReceiver::ackno() const { return {}; }
+optional<WrappingInt32> TCPReceiver::ackno() const {
+    if (not _syn) {
+        return nullopt; /* State: LISTEN */
+    }
+    /*          SYN    DATA LENGTH                    FIN?                                                   */
+    return wrap(1ULL + stream_out().bytes_written() + static_cast<uint64_t>(stream_out().input_ended()), _isn);
+}
 
-size_t TCPReceiver::window_size() const { return {}; }
+size_t TCPReceiver::window_size() const { stream_out().remaining_capacity(); }
