@@ -7,22 +7,23 @@
 // automated checks run by `make check_lab2`.
 
 template <typename... Targs>
-void DUMMY_CODE(Targs &&... /* unused */) {}
+void DUMMY_CODE(Targs &&.../* unused */) {}
 
 using namespace std;
 
 void TCPReceiver::segment_received(const TCPSegment &seg) {
     _syn |= seg.header().syn;
     if (not _syn) {
-        return;
+        return;  // Never met `SYN` before.
     }
     if (seg.header().syn) {
-        _isn = seg.header().seqno;
+        _isn = seg.header().seqno;  // Initialize ISN offset.
     }
 
-    _chkpoint += seg.length_in_sequence_space();
+    _chkpoint += seg.length_in_sequence_space();  // Accumulate to checkpoint as a reference of unwrapping
 
     uint64_t stream_idx =
+        /*                   SEQNO                Skip `SYN` byte on first packet           ISN   CHECKPOINT*/
         unwrap(WrappingInt32(seg.header().seqno + static_cast<uint32_t>(seg.header().syn)), _isn, _chkpoint) - 1;
 
     _reassembler.push_substring(seg.payload().copy(), stream_idx, seg.header().fin);
