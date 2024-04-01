@@ -41,33 +41,57 @@ void TCPSender::fill_window() {
 //! \param ackno The remote receiver's ackno (acknowledgment number)
 //! \param window_size The remote receiver's advertised window size
 void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_size) {
-    // Check validness, outdated ack
+    // Check validness
+    uint64_t recv_ackno = unwrap(ackno, _isn, _curr_ackno);
+    if (_next_seqno < recv_ackno) {
+        return;
+    }
 
     // Update window size, ackno
+    _rwnd_size = window_size;
+    _curr_ackno = max(_curr_ackno, recv_ackno);
 
     // Remove the packet in _segment_out queue which is outdated
     //  ... Pop every packet WHILE _segment_out's front seqno is earlier than ackno.
+    while ((not _segments_outstand.empty()) and (unwrap(_segments_outstand.front().header().seqno, _isn, _next_seqno) +
+                                                     _segments_outstand.front().length_in_sequence_space() <=
+                                                 recv_ackno)) {
+        _bytes_in_flight -= _segments_outstand.front().length_in_sequence_space();
+        _segments_outstand.pop();
+    }
     // Then fill the window & send with new data.
+    fill_window();
 
     // Initialize Retrns. Timeout accumulating state.
+    _timer.reset(_initial_retransmission_timeout);
 
     // IF there are still unsent packet exists?
-    //  ... Start Retrns. Timeout timer.
+    if (not _segments_outstand.empty()) {
+        _timer.restart();  //  Start Retrns. Timeout timer.
+    }
 }
 
 //! \param[in] ms_since_last_tick the number of milliseconds since the last call to this method
 void TCPSender::tick(const size_t ms_since_last_tick) {
-    // IF there are no packets to be sent?
-    //      -> Do not accumulate, return.
+    _timer.elapsed_ticks += ms_since_last_tick;  // Accumulate `ms_since_last_tick` to internal tick count
 
-    // Accumulate `ms_since_last_tick` to internal tick count
+    // IF there are no packets to be sent?
+    if (_segments_outstand.empty()) {
+        // Timer stop, return.
+        _timer.working = false;
+        return;
+    }
 
     // IF ([internal tick count] >= Retrns.Timeout)  (and also there are packets to be sent) ?
-    //      -> Double the Retrns. Timeout and restart accumulating
-    //      -> Retrns. counter increase
+    if (_timer.timeover()) {
+        _segments_out.push(_segments_outstand.front());
+        _timer.consec_retransmit += 1;  // Accumulate consecutive retransmit.
+        _timer.rto *= 2;                // Double the RTO
+        _timer.restart();               // Restart counter
+    }
 }
 
-unsigned int TCPSender::consecutive_retransmissions() const { return _consecutive_retransmit; }
+unsigned int TCPSender::consecutive_retransmissions() const { return _timer.consec_retransmit; }
 
 void TCPSender::send_empty_segment() {
     TCPSegment empty_tcpseg;

@@ -23,8 +23,33 @@ class TCPSender {
     //! outbound queue of segments that the TCPSender wants sent
     std::queue<TCPSegment> _segments_out{};
 
+    //! packets sent, but not yet acknowledged
+    std::queue<TCPSegment> _segments_outstand{};
+
+    struct Timer {
+        size_t elapsed_ticks = 0U;
+        size_t rto = 0U;
+        size_t consec_retransmit = 0U;
+
+        bool working = false;
+
+        Timer(){};
+        void restart() {
+            working = true;
+            elapsed_ticks = 0U;
+        }
+
+        void reset(unsigned int init_rto) {
+            rto = init_rto;
+            consec_retransmit = 0U;
+        }
+
+        bool timeover() { return working and (elapsed_ticks >= rto); }
+    };
+
+    Timer _timer{};
+
     uint64_t _bytes_in_flight = 0ULL;
-    unsigned int _consecutive_retransmit = 0UL;
 
     //! retransmission timer for the connection
     unsigned int _initial_retransmission_timeout;
@@ -34,6 +59,10 @@ class TCPSender {
 
     //! the (absolute) sequence number for the next byte to be sent
     uint64_t _next_seqno{0};
+    //! current acknowledge number recieved from previous packet
+    uint64_t _curr_ackno{0};
+    //! recieve window size (16-bit)
+    uint16_t _rwnd_size{0};
 
   public:
     //! Initialize a TCPSender
