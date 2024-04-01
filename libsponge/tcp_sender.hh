@@ -23,6 +23,9 @@ class TCPSender {
     //! outbound queue of segments that the TCPSender wants sent
     std::queue<TCPSegment> _segments_out{};
 
+    uint64_t _bytes_in_flight = 0ULL;
+    unsigned int _consecutive_retransmit = 0UL;
+
     //! retransmission timer for the connection
     unsigned int _initial_retransmission_timeout;
 
