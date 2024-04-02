@@ -20,7 +20,9 @@ using namespace std;
 TCPSender::TCPSender(const size_t capacity, const uint16_t retx_timeout, const std::optional<WrappingInt32> fixed_isn)
     : _isn(fixed_isn.value_or(WrappingInt32{random_device()()}))
     , _initial_retransmission_timeout{retx_timeout}
-    , _stream(capacity) {}
+    , _stream(capacity) {
+    _timer.reset(retx_timeout);
+}
 
 uint64_t TCPSender::bytes_in_flight() const { return (_next_seqno - _curr_ackno); }
 
@@ -123,6 +125,7 @@ void TCPSender::tick(const size_t ms_since_last_tick) {
 
     // IF ([internal tick count] >= Retrns.Timeout)  (and also there are packets to be sent) ?
     if (_timer.timeover()) {
+        // Re-send unacked packet
         _segments_out.push(_segments_outstand.front());
         // Window size should not be zero, to maintain consecutive retransmission
         if (_rwnd_size > 0) {

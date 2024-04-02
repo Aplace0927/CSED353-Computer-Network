@@ -60,7 +60,7 @@ class TCPSender {
     //! current acknowledge number recieved from previous packet
     uint64_t _curr_ackno{0};
     //! recieve window size (16-bit)
-    uint16_t _rwnd_size{0};
+    uint16_t _rwnd_size{1};
 
     //! Determine FSM States
     bool _status_closed();
