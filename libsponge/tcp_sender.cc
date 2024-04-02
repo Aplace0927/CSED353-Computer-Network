@@ -22,21 +22,20 @@ TCPSender::TCPSender(const size_t capacity, const uint16_t retx_timeout, const s
     , _initial_retransmission_timeout{retx_timeout}
     , _stream(capacity) {}
 
-uint64_t TCPSender::bytes_in_flight() const { return _bytes_in_flight; }
+uint64_t TCPSender::bytes_in_flight() const { return (_next_seqno - _curr_ackno); }
 
 void TCPSender::fill_window() {
     TCPSegment tcpseg;
 
-    // Already FINed
-    if (_fin_flag == true) {
-        return;  // Do nothing
-    }
-
-    // Not SYNed yet -> Send SYN and raise the SYN flag
-    if (_syn_flag == false) {
-        _syn_flag = true;
+    // Not SYNed yet (CLOSED) -> Send SYN and raise the SYN flag
+    if (_status_closed()) {
         tcpseg.header().syn = true;
         _send_tcp_segment(tcpseg, true);
+        return;
+    }
+
+    // SYN sent, not ACKed to SYN yet -> Wait for ACK from other side.
+    if (_status_syn_sent()) {
         return;
     }
 
@@ -44,22 +43,27 @@ void TCPSender::fill_window() {
     size_t window_sz = max(static_cast<uint16_t>(1), _rwnd_size);
 
     // WHILE Window is able to push more:
-    while (_fin_flag == false and window_sz - (_next_seqno - _curr_ackno) > 0) {
-        // Make a packet with data from stream (size up to MAX_PAYLOAD_SIZE)
-        tcpseg.payload() =
-            Buffer(_stream.read(min(window_sz - (_next_seqno - _curr_ackno), TCPConfig::MAX_PAYLOAD_SIZE)));
+    while (window_sz > bytes_in_flight()) {
+        // Current FSM status has chance to send any data.
+        if (_status_syn_acked() || _status_syn_acked_reached_eof()) {
+            // Make a packet with data from stream (size up to MAX_PAYLOAD_SIZE)
+            tcpseg.payload() = Buffer(_stream.read(min(window_sz - bytes_in_flight(), TCPConfig::MAX_PAYLOAD_SIZE)));
 
-        // If Packet is last one from stream? ... Raise FIN flag.
-        _fin_flag |= ((tcpseg.length_in_sequence_space() < window_sz) and _stream.eof());
-        tcpseg.header().fin = _fin_flag;
+            // IF stream end? -> Raise a FIN flag
+            tcpseg.header().fin = _status_syn_acked_reached_eof();
 
-        // Terminate on empty TCP segment.
-        if (tcpseg.length_in_sequence_space() == 0) {
-            break;
+            if (tcpseg.length_in_sequence_space() == 0) {
+                break;  // Terminate on empty TCP segment.
+            }
+
+            // Send the segment, and wait for the response.
+            _send_tcp_segment(tcpseg, true);
         }
 
-        // Send the crafted TCP segment
-        _send_tcp_segment(tcpseg, true);
+        // Current FSM status is already finished transmitting.
+        if (_status_fin_sent() or _status_fin_acked()) {
+            break;
+        }
     }
     return;
 }
@@ -140,4 +144,19 @@ void TCPSender::_send_tcp_segment(TCPSegment &tcpseg, bool wait_response) {
 
     _timer.restart();
     return;
+}
+
+bool TCPSender::_status_closed() { return next_seqno_absolute() == 0ULL; }
+bool TCPSender::_status_syn_sent() {
+    return next_seqno_absolute() > 0ULL and next_seqno_absolute() == bytes_in_flight();
+}
+bool TCPSender::_status_syn_acked() { return next_seqno_absolute() > bytes_in_flight() and not stream_in().eof(); }
+bool TCPSender::_status_syn_acked_reached_eof() {
+    return stream_in().eof() and next_seqno_absolute() < stream_in().bytes_written() + 2ULL;
+}
+bool TCPSender::_status_fin_sent() {
+    return stream_in().eof() and next_seqno_absolute() == stream_in().bytes_written() + 2ULL and bytes_in_flight() > 0;
+}
+bool TCPSender::_status_fin_acked() {
+    return stream_in().eof() and next_seqno_absolute() == stream_in().bytes_written() + 2ULL and bytes_in_flight() == 0;
 }

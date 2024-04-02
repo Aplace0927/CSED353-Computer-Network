@@ -64,9 +64,13 @@ class TCPSender {
     //! recieve window size (16-bit)
     uint16_t _rwnd_size{0};
 
-    // SYN and FIN flags to send data
-    bool _syn_flag = false;
-    bool _fin_flag = false;
+    //! Determine FSM States
+    bool _status_closed();
+    bool _status_syn_sent();
+    bool _status_syn_acked();
+    bool _status_syn_acked_reached_eof();
+    bool _status_fin_sent();
+    bool _status_fin_acked();
 
     void _send_tcp_segment(TCPSegment &tcpseg, bool wait_response);
 
