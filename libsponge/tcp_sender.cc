@@ -153,9 +153,7 @@ void TCPSender::_send_tcp_segment(TCPSegment &tcpseg, bool wait_response) {
         _segments_outstand.push(tcpseg);
     }
 
-    if (not _timer.working) {
-        _timer.working = true;
-    }
+    _timer.working = true;
     return;
 }
 
