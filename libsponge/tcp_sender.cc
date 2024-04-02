@@ -25,17 +25,43 @@ TCPSender::TCPSender(const size_t capacity, const uint16_t retx_timeout, const s
 uint64_t TCPSender::bytes_in_flight() const { return _bytes_in_flight; }
 
 void TCPSender::fill_window() {
-    // Already FINed or Not yet SYNed?
-    //  -> Do nothing (FINed) / Send with SYN flag (Not SYNed)
+    TCPSegment tcpseg;
+
+    // Already FINed
+    if (_fin_flag == true) {
+        return;  // Do nothing
+    }
+
+    // Not SYNed yet -> Send SYN and raise the SYN flag
+    if (_syn_flag == false) {
+        _syn_flag = true;
+        tcpseg.header().syn = true;
+        _send_tcp_segment(tcpseg, true);
+        return;
+    }
 
     // Window size = max(1, (current Window size))
+    size_t window_sz = max(static_cast<uint16_t>(1), _rwnd_size);
 
     // WHILE Window is able to push more:
-    //  ... Make a packet with data from stream (size up to MAX_PAYLOAD_SIZE), and send it.
-    // IF Nothing to be sent?
-    //  ... Terminate.
-    // IF Packet is last one from stream?
-    //  ... Raise FIN flag.
+    while (_fin_flag == false and window_sz - (_next_seqno - _curr_ackno) > 0) {
+        // Make a packet with data from stream (size up to MAX_PAYLOAD_SIZE)
+        tcpseg.payload() =
+            Buffer(_stream.read(min(window_sz - (_next_seqno - _curr_ackno), TCPConfig::MAX_PAYLOAD_SIZE)));
+
+        // If Packet is last one from stream? ... Raise FIN flag.
+        _fin_flag |= ((tcpseg.length_in_sequence_space() < window_sz) and _stream.eof());
+        tcpseg.header().fin = _fin_flag;
+
+        // Terminate on empty TCP segment.
+        if (tcpseg.length_in_sequence_space() == 0) {
+            break;
+        }
+
+        // Send the crafted TCP segment
+        _send_tcp_segment(tcpseg, true);
+    }
+    return;
 }
 
 //! \param ackno The remote receiver's ackno (acknowledgment number)
@@ -69,6 +95,8 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
     if (not _segments_outstand.empty()) {
         _timer.restart();  //  Start Retrns. Timeout timer.
     }
+
+    return;
 }
 
 //! \param[in] ms_since_last_tick the number of milliseconds since the last call to this method
@@ -89,12 +117,27 @@ void TCPSender::tick(const size_t ms_since_last_tick) {
         _timer.rto *= 2;                // Double the RTO
         _timer.restart();               // Restart counter
     }
+    return;
 }
 
 unsigned int TCPSender::consecutive_retransmissions() const { return _timer.consec_retransmit; }
 
 void TCPSender::send_empty_segment() {
     TCPSegment empty_tcpseg;
-    empty_tcpseg.header().seqno = wrap(_next_seqno, _isn);  // Empty packet with correct sequence number
-    _segments_out.push(empty_tcpseg);
+    _send_tcp_segment(empty_tcpseg, false);
+    return;
+}
+
+void TCPSender::_send_tcp_segment(TCPSegment &tcpseg, bool wait_response) {
+    tcpseg.header().seqno = wrap(_next_seqno, _isn);
+    _next_seqno += tcpseg.length_in_sequence_space();
+    _bytes_in_flight += tcpseg.length_in_sequence_space();
+
+    _segments_out.push(tcpseg);
+    if (wait_response) {
+        _segments_outstand.push(tcpseg);
+    }
+
+    _timer.restart();
+    return;
 }

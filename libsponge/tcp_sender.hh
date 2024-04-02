@@ -64,6 +64,12 @@ class TCPSender {
     //! recieve window size (16-bit)
     uint16_t _rwnd_size{0};
 
+    // SYN and FIN flags to send data
+    bool _syn_flag = false;
+    bool _fin_flag = false;
+
+    void _send_tcp_segment(TCPSegment &tcpseg, bool wait_response);
+
   public:
     //! Initialize a TCPSender
     TCPSender(const size_t capacity = TCPConfig::DEFAULT_CAPACITY,
