@@ -40,28 +40,29 @@ void TCPSender::fill_window() {
     }
 
     // Window size = max(1, (current Window size))
-    size_t window_sz = max(static_cast<uint16_t>(1), _rwnd_size);
-
+    uint16_t window_sz = max(static_cast<uint16_t>(1), _rwnd_size);
     // WHILE Window is able to push more:
-    while (window_sz > bytes_in_flight()) {
+    while (window_sz > static_cast<uint16_t>(bytes_in_flight())) {
         // Current FSM status has chance to send any data.
-        if (_status_syn_acked() || _status_syn_acked_reached_eof()) {
+        if (_status_syn_acked()) {
             // Make a packet with data from stream (size up to MAX_PAYLOAD_SIZE)
             tcpseg.payload() = Buffer(_stream.read(min(window_sz - bytes_in_flight(), TCPConfig::MAX_PAYLOAD_SIZE)));
 
             // IF stream end? -> Raise a FIN flag
-            tcpseg.header().fin = _status_syn_acked_reached_eof();
-
+            tcpseg.header().fin = _stream.eof() and tcpseg.length_in_sequence_space() < window_sz - bytes_in_flight();
             if (tcpseg.length_in_sequence_space() == 0) {
                 break;  // Terminate on empty TCP segment.
             }
 
             // Send the segment, and wait for the response.
             _send_tcp_segment(tcpseg, true);
+        } else if (_status_syn_acked_reached_eof()) {
+            tcpseg.header().fin = true;
+            _send_tcp_segment(tcpseg, true);
         }
 
         // Current FSM status is already finished transmitting.
-        if (_status_fin_sent() or _status_fin_acked()) {
+        else if (_status_fin_sent() or _status_fin_acked()) {
             break;
         }
     }
@@ -79,34 +80,40 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
 
     // Update window size, ackno
     _rwnd_size = window_size;
-    _curr_ackno = max(_curr_ackno, recv_ackno);
 
-    // Remove the packet in _segment_out queue which is outdated
-    //  ... Pop every packet WHILE _segment_out's front seqno is earlier than ackno.
-    while ((not _segments_outstand.empty()) and (unwrap(_segments_outstand.front().header().seqno, _isn, _next_seqno) +
-                                                     _segments_outstand.front().length_in_sequence_space() <=
-                                                 recv_ackno)) {
-        _bytes_in_flight -= _segments_outstand.front().length_in_sequence_space();
-        _segments_outstand.pop();
+    // Only for the newest packet
+    if (recv_ackno > _curr_ackno) {
+        _curr_ackno = recv_ackno;
+        // Remove the packet in _segment_out queue which is outdated
+        //  ... Pop every packet WHILE _segment_out's front seqno is earlier than ackno.
+        while ((not _segments_outstand.empty()) and
+               (unwrap(_segments_outstand.front().header().seqno, _isn, _next_seqno) +
+                    _segments_outstand.front().length_in_sequence_space() <=
+                recv_ackno)) {
+            _segments_outstand.pop();
+        }
+
+        // Then fill the window & send with new data.
+        fill_window();
+
+        // Initialize Retrns. Timeout accumulating state.
+        _timer.reset(_initial_retransmission_timeout);
+
+        // IF there are still unsent packet exists?
+        if (not _segments_outstand.empty()) {
+            _timer.restart();  //  Start Retrns. Timeout timer.
+        } else {
+            _timer.working = false;
+        }
     }
-    // Then fill the window & send with new data.
-    fill_window();
-
-    // Initialize Retrns. Timeout accumulating state.
-    _timer.reset(_initial_retransmission_timeout);
-
-    // IF there are still unsent packet exists?
-    if (not _segments_outstand.empty()) {
-        _timer.restart();  //  Start Retrns. Timeout timer.
-    }
-
     return;
 }
 
 //! \param[in] ms_since_last_tick the number of milliseconds since the last call to this method
 void TCPSender::tick(const size_t ms_since_last_tick) {
-    _timer.elapsed_ticks += ms_since_last_tick;  // Accumulate `ms_since_last_tick` to internal tick count
-
+    if (_timer.working) {
+        _timer.elapsed_ticks += ms_since_last_tick;  // Accumulate `ms_since_last_tick` when working
+    }
     // IF there are no packets to be sent?
     if (_segments_outstand.empty()) {
         // Timer stop, return.
@@ -117,11 +124,13 @@ void TCPSender::tick(const size_t ms_since_last_tick) {
     // IF ([internal tick count] >= Retrns.Timeout)  (and also there are packets to be sent) ?
     if (_timer.timeover()) {
         _segments_out.push(_segments_outstand.front());
-        _timer.consec_retransmit += 1;  // Accumulate consecutive retransmit.
-        _timer.rto *= 2;                // Double the RTO
-        _timer.restart();               // Restart counter
+        // Window size should not be zero, to maintain consecutive retransmission
+        if (_rwnd_size > 0) {
+            _timer.consec_retransmit += 1;  // Accumulate consecutive retransmit.
+            _timer.rto *= 2;                // Double the RTO
+        }
+        _timer.restart();  // Restart counter
     }
-    return;
 }
 
 unsigned int TCPSender::consecutive_retransmissions() const { return _timer.consec_retransmit; }
@@ -133,16 +142,17 @@ void TCPSender::send_empty_segment() {
 }
 
 void TCPSender::_send_tcp_segment(TCPSegment &tcpseg, bool wait_response) {
-    tcpseg.header().seqno = wrap(_next_seqno, _isn);
+    tcpseg.header().seqno = next_seqno();
     _next_seqno += tcpseg.length_in_sequence_space();
-    _bytes_in_flight += tcpseg.length_in_sequence_space();
 
     _segments_out.push(tcpseg);
     if (wait_response) {
         _segments_outstand.push(tcpseg);
     }
 
-    _timer.restart();
+    if (not _timer.working) {
+        _timer.working = true;
+    }
     return;
 }
 

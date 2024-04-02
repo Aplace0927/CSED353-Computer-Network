@@ -49,8 +49,6 @@ class TCPSender {
 
     Timer _timer{};
 
-    uint64_t _bytes_in_flight = 0ULL;
-
     //! retransmission timer for the connection
     unsigned int _initial_retransmission_timeout;
 
