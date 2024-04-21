@@ -39,6 +39,32 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
      *
      * (+ Keep-Alive Implementation)
      */
+
+    if (seg.header().rst) {
+        close(false);
+        return;
+    }
+
+    _receiver.segment_received(seg);
+
+    // 3-Way Handshaking
+    if (TCPState(_sender, _receiver, activeness, _linger_after_streams_finish) == TCPState(TCPState::State::SYN_RCVD)) {
+        // SYN + ACK Should be sent
+    }
+
+    // ACKing to TCP Connection.
+    if (seg.header().ack) {
+        _sender.ack_received(seg.header().ackno, seg.header().win);
+        if (seg.length_in_sequence_space() > 0 and _sender.segments_out().empty()) {
+            _sender.send_empty_segment();
+        }
+    }
+
+    // Keep-Alive
+    if (_receiver.ackno().has_value() and (seg.length_in_sequence_space() == 0) and
+        seg.header().seqno == _receiver.ackno().value() - 1) {
+        _sender.send_empty_segment();
+    }
 }
 
 bool TCPConnection::active() const { return activeness; }
