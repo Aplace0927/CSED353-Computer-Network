@@ -123,6 +123,32 @@ void TCPConnection::close(const bool graceful) {
     }
 }
 
+void TCPConnection::launch(const bool reset) {
+    TCPSegment payload;
+    if (reset) {
+        _sender.fill_window();
+        if (_sender.segments_out().empty()) {
+            _sender.send_empty_segment();
+        }
+    }
+    while (not _sender.segments_out().empty() or reset) {
+        payload = _sender.segments_out().front();
+        _sender.segments_out().pop();
+        if (_receiver.ackno().has_value()) {  // ACKing to the recieved packet
+            payload.header().ack = true;
+            payload.header().ackno = _receiver.ackno().value();
+            payload.header().win =
+                min(static_cast<uint16_t>(_receiver.window_size()),
+                    numeric_limits<uint16_t>::max());  // No congestion control, send as much as possible
+        }
+        payload.header().rst = reset;
+        _segments_out.push(payload);
+        if (reset) {  // RST sends only one packet.
+            return;
+        }
+    }
+    return;
+}
 TCPConnection::~TCPConnection() {
     try {
         if (active()) {

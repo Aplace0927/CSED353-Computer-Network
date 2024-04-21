@@ -18,6 +18,9 @@ class TCPConnection {
     //! Closing TCP Connection with or without error
     void close(const bool graceful);
 
+    //! Sending TCP segments explicitly, by pushing segments into the queue.
+    void launch(const bool reset);
+
     //! outbound queue of segments that the TCPConnection wants sent
     std::queue<TCPSegment> _segments_out{};
 
