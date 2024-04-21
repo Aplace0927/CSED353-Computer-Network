@@ -49,7 +49,9 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
 
     // 3-Way Handshaking
     if (TCPState(_sender, _receiver, activeness, _linger_after_streams_finish) == TCPState(TCPState::State::SYN_RCVD)) {
-        // SYN + ACK Should be sent
+        _sender.fill_window();
+        launch(false);
+        return;
     }
 
     // ACKing to TCP Connection.
@@ -65,19 +67,24 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
         seg.header().seqno == _receiver.ackno().value() - 1) {
         _sender.send_empty_segment();
     }
+
+    launch(false);  // Send the segment w/o RST
+    close(true);    // Close connection w/o ERROR
 }
 
 bool TCPConnection::active() const { return activeness; }
 
 size_t TCPConnection::write(const string &data) {
-    if (not active()) {
+    if ((not active()) or (data.length() == 0)) {
         return 0UL;
     }
-    DUMMY_CODE(data);
     /**
      * Write string to sender's stream, and sender will send it.
      */
-    return {};
+    size_t written = _sender.stream_in().write(data);
+    _sender.fill_window();
+    launch(false);
+    return written;
 }
 
 //! \param[in] ms_since_last_tick number of milliseconds since the last call to this method
