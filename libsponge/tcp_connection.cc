@@ -36,6 +36,29 @@ void TCPConnection::end_input_stream() {}
 
 void TCPConnection::connect() {}
 
+void TCPConnection::close(const bool graceful) {
+    if (not graceful) {
+        /* Errorful closing could be achieved by spraying error on in/out stream. */
+        _sender.stream_in().set_error();
+        _receiver.stream_out().set_error();
+        activeness = false;
+        return;
+    } else {
+        /* Turn the 'Lingering' switch when EOF had reached*/
+        _linger_after_streams_finish &= (not((_receiver.stream_out().input_ended()) and (_sender.stream_in().eof())));
+        if (TCPState::state_summary(_sender) == TCPSenderStateSummary::FIN_ACKED and
+            TCPState::state_summary(_receiver) == TCPReceiverStateSummary::FIN_RECV) {
+            /**
+             * Maintain active connection when
+             * - Should be lingered AND
+             * - (Last segment recieved time) is shorter than (10 * RT_TIMEOUT)
+             */
+            activeness &= (_linger_after_streams_finish and time_since_last_segment_received() < 10 * _cfg.rt_timeout);
+        }
+        return;
+    }
+}
+
 TCPConnection::~TCPConnection() {
     try {
         if (active()) {

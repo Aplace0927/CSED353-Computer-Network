@@ -15,6 +15,9 @@ class TCPConnection {
     size_t last_seg_recv = 0;
     bool activeness = true;
 
+    //! Closing TCP Connection with or without error
+    void close(const bool graceful);
+
     //! outbound queue of segments that the TCPConnection wants sent
     std::queue<TCPSegment> _segments_out{};
 
