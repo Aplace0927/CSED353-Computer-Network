@@ -98,13 +98,32 @@ void TCPConnection::tick(const size_t ms_since_last_tick) {
      * IF (# of Consec. retransmissions) > MAX_RETX_ATTEMPTS
      *  - Close connection "ungracefully"
      */
-    DUMMY_CODE(ms_since_last_tick);
+    _sender.tick(ms_since_last_tick);
+    if (_sender.consecutive_retransmissions() > TCPConfig::MAX_RETX_ATTEMPTS) {
+        _sender.fill_window();
+        if (_sender.segments_out().empty()) {
+            _sender.send_empty_segment();
+        }
+        launch(true);
+        close(false);
+        return;
+    }
+    launch(false);
+    close(true);
+    return;
 }
 
 void TCPConnection::end_input_stream() { /* End the input stream (Trigger EOF) -> Send FIN */
+    _sender.stream_in().end_input();
+    _sender.fill_window();
+    launch(false);
+    return;
 }
 
 void TCPConnection::connect() { /* Do the 1st step (SYN) of 3-Way handshake */
+    _sender.fill_window();
+    launch(false);
+    return;
 }
 
 void TCPConnection::close(const bool graceful) {
@@ -132,12 +151,6 @@ void TCPConnection::close(const bool graceful) {
 
 void TCPConnection::launch(const bool reset) {
     TCPSegment payload;
-    if (reset) {
-        _sender.fill_window();
-        if (_sender.segments_out().empty()) {
-            _sender.send_empty_segment();
-        }
-    }
     while (not _sender.segments_out().empty() or reset) {
         payload = _sender.segments_out().front();
         _sender.segments_out().pop();
