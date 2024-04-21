@@ -20,21 +20,59 @@ size_t TCPConnection::unassembled_bytes() const { return _receiver.unassembled_b
 
 size_t TCPConnection::time_since_last_segment_received() const { return last_seg_recv; }
 
-void TCPConnection::segment_received(const TCPSegment &seg) { DUMMY_CODE(seg); }
+void TCPConnection::segment_received(const TCPSegment &seg) {
+    if (not active()) {
+        return;
+    }
+    last_seg_recv = 0UL;  // Reset tick elapsed from last segment recieved
+
+    /**
+     * IF RST Segment?
+     *  - Then Close "Ungracefully".
+     *
+     * IF 3-Way Handshake not finished, in Reciever's view?
+     *  - Then (SYN + ACK) segment should be sent.
+     *
+     * IF Recieved Packet is ACKing to TCP Connection?
+     *  - Then send new data, with updating connection environment (ex: Window size).
+     *  - IF No data is available, then send empty segment as new data. (implicitly meaning data end)
+     *
+     * (+ Keep-Alive Implementation)
+     */
+}
 
 bool TCPConnection::active() const { return activeness; }
 
 size_t TCPConnection::write(const string &data) {
+    if (not active()) {
+        return 0UL;
+    }
     DUMMY_CODE(data);
+    /**
+     * Write string to sender's stream, and sender will send it.
+     */
     return {};
 }
 
 //! \param[in] ms_since_last_tick number of milliseconds since the last call to this method
-void TCPConnection::tick(const size_t ms_since_last_tick) { DUMMY_CODE(ms_since_last_tick); }
+void TCPConnection::tick(const size_t ms_since_last_tick) {
+    if (not active()) {
+        return;
+    }
+    /**
+     * Update tick.
+     *
+     * IF (# of Consec. retransmissions) > MAX_RETX_ATTEMPTS
+     *  - Close connection "ungracefully"
+     */
+    DUMMY_CODE(ms_since_last_tick);
+}
 
-void TCPConnection::end_input_stream() {}
+void TCPConnection::end_input_stream() { /* End the input stream (Trigger EOF) -> Send FIN */
+}
 
-void TCPConnection::connect() {}
+void TCPConnection::connect() { /* Do the 1st step (SYN) of 3-Way handshake */
+}
 
 void TCPConnection::close(const bool graceful) {
     if (not graceful) {
