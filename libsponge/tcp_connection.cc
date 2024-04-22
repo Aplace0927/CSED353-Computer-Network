@@ -99,6 +99,7 @@ void TCPConnection::tick(const size_t ms_since_last_tick) {
      *  - Close connection "ungracefully"
      */
     _sender.tick(ms_since_last_tick);
+    last_seg_recv += ms_since_last_tick;
     if (_sender.consecutive_retransmissions() > TCPConfig::MAX_RETX_ATTEMPTS) {
         _sender.fill_window();
         if (_sender.segments_out().empty()) {
@@ -135,7 +136,10 @@ void TCPConnection::close(const bool graceful) {
         return;
     } else {
         /* Turn the 'Lingering' switch when EOF had reached*/
-        _linger_after_streams_finish &= (not((_receiver.stream_out().input_ended()) and (_sender.stream_in().eof())));
+        if ((not _sender.stream_in().eof()) and (_receiver.stream_out().input_ended())) {
+            _linger_after_streams_finish = false;
+            return;
+        }
         if (TCPState::state_summary(_sender) == TCPSenderStateSummary::FIN_ACKED and
             TCPState::state_summary(_receiver) == TCPReceiverStateSummary::FIN_RECV) {
             /**
@@ -143,7 +147,8 @@ void TCPConnection::close(const bool graceful) {
              * - Should be lingered AND
              * - (Last segment recieved time) is shorter than (10 * RT_TIMEOUT)
              */
-            activeness &= (_linger_after_streams_finish and time_since_last_segment_received() < 10 * _cfg.rt_timeout);
+            activeness &=
+                (_linger_after_streams_finish) and (time_since_last_segment_received() < 10 * _cfg.rt_timeout);
         }
         return;
     }
