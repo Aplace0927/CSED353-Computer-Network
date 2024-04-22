@@ -50,19 +50,18 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
     // 3-Way Handshaking, 2nd stage
     if (TCPState::state_summary(_sender) == TCPSenderStateSummary::CLOSED and
         TCPState::state_summary(_receiver) == TCPReceiverStateSummary::SYN_RECV) {
-        _sender.fill_window();
-        launch(false);
+        connect();
         return;
     }
 
     // ACKing to TCP Connection.
     if (seg.header().ack) {
         _sender.ack_received(seg.header().ackno, seg.header().win);
-        if (seg.length_in_sequence_space() > 0 and _sender.segments_out().empty()) {
-            _sender.send_empty_segment();
-        }
     }
 
+    if (seg.length_in_sequence_space() > 0 and _sender.segments_out().empty()) {
+        _sender.send_empty_segment();
+    }
     // Keep-Alive
     if (_receiver.ackno().has_value() and (seg.length_in_sequence_space() == 0) and
         seg.header().seqno == _receiver.ackno().value() - 1) {
@@ -152,7 +151,7 @@ void TCPConnection::close(const bool graceful) {
 
 void TCPConnection::launch(const bool reset) {
     TCPSegment payload;
-    while (not _sender.segments_out().empty() or reset) {
+    while ((not _sender.segments_out().empty()) or reset) {
         payload = _sender.segments_out().front();
         _sender.segments_out().pop();
         if (_receiver.ackno().has_value()) {  // ACKing to the recieved packet
@@ -174,8 +173,12 @@ TCPConnection::~TCPConnection() {
     try {
         if (active()) {
             cerr << "Warning: Unclean shutdown of TCPConnection\n";
-
-            // Your code here: need to send a RST segment to the peer
+            _sender.fill_window();
+            if (_sender.segments_out().empty()) {
+                _sender.send_empty_segment();
+            }
+            launch(true);
+            close(false);
         }
     } catch (const exception &e) {
         std::cerr << "Exception destructing TCP FSM: " << e.what() << std::endl;
