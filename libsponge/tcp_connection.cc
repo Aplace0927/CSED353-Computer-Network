@@ -47,8 +47,9 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
 
     _receiver.segment_received(seg);
 
-    // 3-Way Handshaking
-    if (TCPState(_sender, _receiver, activeness, _linger_after_streams_finish) == TCPState(TCPState::State::SYN_RCVD)) {
+    // 3-Way Handshaking, 2nd stage
+    if (TCPState::state_summary(_sender) == TCPSenderStateSummary::CLOSED and
+        TCPState::state_summary(_receiver) == TCPReceiverStateSummary::SYN_RECV) {
         _sender.fill_window();
         launch(false);
         return;
