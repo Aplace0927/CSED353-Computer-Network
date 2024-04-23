@@ -26,22 +26,8 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
     }
     last_seg_recv = 0UL;  // Reset tick elapsed from last segment recieved
 
-    /**
-     * IF RST Segment?
-     *  - Then Close "Ungracefully".
-     *
-     * IF 3-Way Handshake not finished, in Reciever's view?
-     *  - Then (SYN + ACK) segment should be sent.
-     *
-     * IF Recieved Packet is ACKing to TCP Connection?
-     *  - Then send new data, with updating connection environment (ex: Window size).
-     *  - IF No data is available, then send empty segment as new data. (implicitly meaning data end)
-     *
-     * (+ Keep-Alive Implementation)
-     */
-
     if (seg.header().rst) {
-        close(false);
+        close(false);  // Unclean shutdown initiated from server-side, set as error
         return;
     }
 
@@ -54,22 +40,24 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
         return;
     }
 
-    // ACKing to TCP Connection.
+    // ACKing to TCP Connection: send new data, with updating connection environment (ex: Window size).
     if (seg.header().ack) {
         _sender.ack_received(seg.header().ackno, seg.header().win);
     }
 
+    // IF No data is available, then send empty segment as new data. (implicitly meaning data end)
     if (seg.length_in_sequence_space() > 0 and _sender.segments_out().empty()) {
         _sender.send_empty_segment();
     }
+
     // Keep-Alive
     if (_receiver.ackno().has_value() and (seg.length_in_sequence_space() == 0) and
         seg.header().seqno == _receiver.ackno().value() - 1) {
         _sender.send_empty_segment();
     }
 
-    launch(false);  // Send the segment w/o RST
-    close(true);    // Close connection w/o ERROR
+    launch(false);  // Send ACK segment.
+    close(true);    // Clean shutdown, FIN segment.
 }
 
 bool TCPConnection::active() const { return activeness; }
@@ -105,12 +93,12 @@ void TCPConnection::tick(const size_t ms_since_last_tick) {
         if (_sender.segments_out().empty()) {
             _sender.send_empty_segment();
         }
-        launch(true);
-        close(false);
+        launch(true);  // Send RST segment.
+        close(false);  // Unclean shutdown.
         return;
     }
-    launch(false);
-    close(true);
+    launch(false);  // Send ACK segment.
+    close(true);    // Clean shutdown, FIN segment.
     return;
 }
 
@@ -182,8 +170,8 @@ TCPConnection::~TCPConnection() {
             if (_sender.segments_out().empty()) {
                 _sender.send_empty_segment();
             }
-            launch(true);
-            close(false);
+            launch(true);  // Send RST segment
+            close(false);  // Unclean shutdown
         }
     } catch (const exception &e) {
         std::cerr << "Exception destructing TCP FSM: " << e.what() << std::endl;

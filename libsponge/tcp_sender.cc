@@ -151,7 +151,7 @@ void TCPSender::_send_tcp_segment(TCPSegment &tcpseg, bool wait_response) {
     _segments_out.push(tcpseg);
     if (wait_response) {
         _segments_outstand.push(tcpseg);
-        _timer.working = true;
+        _timer.working = true;  // Update: Timer should work only waiting for response.
     }
     return;
 }
