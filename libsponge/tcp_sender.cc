@@ -10,7 +10,7 @@
 // automated checks run by `make check_lab3`.
 
 template <typename... Targs>
-void DUMMY_CODE(Targs &&... /* unused */) {}
+void DUMMY_CODE(Targs &&.../* unused */) {}
 
 using namespace std;
 
@@ -151,9 +151,8 @@ void TCPSender::_send_tcp_segment(TCPSegment &tcpseg, bool wait_response) {
     _segments_out.push(tcpseg);
     if (wait_response) {
         _segments_outstand.push(tcpseg);
+        _timer.working = true;
     }
-
-    _timer.working = true;
     return;
 }
 
