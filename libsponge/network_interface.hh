@@ -49,23 +49,24 @@ class NetworkInterface {
         EthernetAddress link_layer_addr;
         size_t addr_ttl;
 
+        ARPMapping() = default;
         ARPMapping(EthernetAddress addr, size_t ttl) : link_layer_addr(addr), addr_ttl(ttl){};
         bool expired(size_t limit_ttl) { return limit_ttl < addr_ttl; }
     };
 
     class IPSentInfo {
       public:
-        const Address network_layer_addr;
-        const InternetDatagram data_sent;
+        Address network_layer_addr;
+        InternetDatagram data_sent;
         IPSentInfo(const Address addr, const InternetDatagram &dgram) : network_layer_addr(addr), data_sent(dgram){};
     };
 
     // ARP table
-    std::map<Address, ARPMapping> arp_table;
+    std::map<uint32_t, ARPMapping> arp_table = {};
     // ARP Packets queried, waiting IP address response until timeout
-    std::map<Address, size_t> queried_arp;
+    std::map<uint32_t, size_t> queried_arp = {};
     // IP Packets queried, waiting ARP packet recieved.
-    std::vector<IPSentInfo> queried_ip;
+    std::vector<IPSentInfo> queried_ip = {};
 
   public:
     //! \brief Construct a network interface with given Ethernet (network-access-layer) and IP (internet-layer) addresses

@@ -33,14 +33,14 @@ void NetworkInterface::send_datagram(const InternetDatagram &dgram, const Addres
     // convert IP address of next hop to raw 32-bit representation (used in ARP header)
     const uint32_t next_hop_ip = next_hop.ipv4_numeric();
 
-    if (arp_table.find(next_hop) != arp_table.end()) {
+    if (arp_table.find(next_hop_ip) != arp_table.end()) {
         EthernetFrame ethfrm;
         ethfrm.header().src = _ethernet_address;
-        ethfrm.header().dst = arp_table.find(next_hop)->second.link_layer_addr;
+        ethfrm.header().dst = arp_table.find(next_hop_ip)->second.link_layer_addr;
         ethfrm.header().type = EthernetHeader::TYPE_IPv4;
         ethfrm.payload() = dgram.serialize();
         _frames_out.push(ethfrm);
-    } else if (queried_arp.find(next_hop) != queried_arp.end()) {
+    } else if (queried_arp.find(next_hop_ip) != queried_arp.end()) {
         queried_ip.push_back(IPSentInfo(next_hop, dgram));
     } else {
         ARPMessage arpmsg;
@@ -56,13 +56,70 @@ void NetworkInterface::send_datagram(const InternetDatagram &dgram, const Addres
         ethfrm.payload() = arpmsg.serialize();
 
         _frames_out.push(ethfrm);
-        queried_arp[next_hop] = ARP_QUERY_TIME_TO_LIVE;
+        queried_arp[next_hop_ip] = ARP_QUERY_TIME_TO_LIVE;
     }
 }
 
 //! \param[in] frame the incoming Ethernet frame
 optional<InternetDatagram> NetworkInterface::recv_frame(const EthernetFrame &frame) {
-    DUMMY_CODE(frame);
+    if ((frame.header().dst != _ethernet_address) or (frame.header().dst != ETHERNET_BROADCAST)) {
+        return {};
+    }
+
+    switch (frame.header().type) {
+        case EthernetHeader::TYPE_IPv4: {
+            InternetDatagram dgram;
+            if (dgram.parse(frame.payload()) != ParseResult::NoError) {
+                return {};
+            }
+            return dgram;
+        }
+        case EthernetHeader::TYPE_ARP: {
+            ARPMessage arpmsg;
+            if (arpmsg.parse(frame.payload()) != ParseResult::NoError) {
+                return {};
+            }
+            bool arp_req = (arpmsg.opcode == ARPMessage::OPCODE_REQUEST) and
+                           (arpmsg.target_ip_address == _ip_address.ipv4_numeric());
+            bool arp_rsp =
+                (arpmsg.opcode == ARPMessage::OPCODE_REPLY) and (arpmsg.target_ethernet_address == _ethernet_address);
+
+            if (arp_req) {
+                ARPMessage arprpl;
+                arprpl.opcode = ARPMessage::OPCODE_REPLY;
+                arprpl.sender_ethernet_address = _ethernet_address;
+                arprpl.sender_ip_address = _ip_address.ipv4_numeric();
+                arprpl.target_ethernet_address = arpmsg.sender_ethernet_address;
+                arprpl.target_ip_address = arpmsg.target_ip_address;
+
+                EthernetFrame ethfrm;
+                ethfrm.header().src = _ethernet_address;
+                ethfrm.header().dst = arpmsg.sender_ethernet_address;
+                ethfrm.header().type = EthernetHeader::TYPE_ARP;
+                ethfrm.payload() = arprpl.serialize();
+
+                _frames_out.push(ethfrm);
+            }
+            if (arp_req or arp_rsp) {
+                arp_table[arpmsg.sender_ip_address] =
+                    ARPMapping(arpmsg.sender_ethernet_address, ARP_QUERY_TIME_TO_LIVE);
+
+                for (NetworkInterface::IPSentInfo sentinfo : queried_ip) {
+                    if (sentinfo.network_layer_addr.ipv4_numeric() == arpmsg.sender_ip_address) {
+                        send_datagram(sentinfo.data_sent, sentinfo.network_layer_addr);
+                    }
+                }
+                queried_ip.erase(std::remove_if(queried_ip.begin(), queried_ip.end(), [arpmsg](const IPSentInfo &info) {
+                    return info.network_layer_addr.ipv4_numeric() == arpmsg.sender_ip_address;
+                }));
+                queried_arp.erase(arpmsg.sender_ip_address);
+            }
+            break;
+        }
+        default: {
+            return {};
+        }
+    }
     return {};
 }
 
