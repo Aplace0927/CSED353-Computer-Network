@@ -14,7 +14,7 @@
 // You will need to add private members to the class declaration in `network_interface.hh`
 
 template <typename... Targs>
-void DUMMY_CODE(Targs &&... /* unused */) {}
+void DUMMY_CODE(Targs &&.../* unused */) {}
 
 using namespace std;
 
@@ -33,7 +33,31 @@ void NetworkInterface::send_datagram(const InternetDatagram &dgram, const Addres
     // convert IP address of next hop to raw 32-bit representation (used in ARP header)
     const uint32_t next_hop_ip = next_hop.ipv4_numeric();
 
-    DUMMY_CODE(dgram, next_hop, next_hop_ip);
+    if (arp_table.find(next_hop) != arp_table.end()) {
+        EthernetFrame ethfrm;
+        ethfrm.header().src = _ethernet_address;
+        ethfrm.header().dst = arp_table.find(next_hop)->second.link_layer_addr;
+        ethfrm.header().type = EthernetHeader::TYPE_IPv4;
+        ethfrm.payload() = dgram.serialize();
+        _frames_out.push(ethfrm);
+    } else if (queried_arp.find(next_hop) != queried_arp.end()) {
+        queried_ip.push_back(IPSentInfo(next_hop, dgram));
+    } else {
+        ARPMessage arpmsg;
+        arpmsg.opcode = ARPMessage::OPCODE_REQUEST;
+        arpmsg.sender_ethernet_address = _ethernet_address;
+        arpmsg.sender_ip_address = _ip_address.ipv4_numeric();
+        arpmsg.target_ip_address = next_hop_ip;
+
+        EthernetFrame ethfrm;
+        ethfrm.header().dst = ETHERNET_BROADCAST;
+        ethfrm.header().src = _ethernet_address;
+        ethfrm.header().type = EthernetHeader::TYPE_ARP;
+        ethfrm.payload() = arpmsg.serialize();
+
+        _frames_out.push(ethfrm);
+        queried_arp[next_hop] = ARP_QUERY_TIME_TO_LIVE;
+    }
 }
 
 //! \param[in] frame the incoming Ethernet frame

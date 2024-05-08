@@ -42,7 +42,10 @@ class NetworkInterface {
     //! outbound queue of Ethernet frames that the NetworkInterface wants sent
     std::queue<EthernetFrame> _frames_out{};
 
+    const size_t ARP_QUERY_TIME_TO_LIVE = 30'000;
+
     class ARPMapping {
+      public:
         EthernetAddress link_layer_addr;
         size_t addr_ttl;
 
@@ -51,15 +54,16 @@ class NetworkInterface {
     };
 
     class IPSentInfo {
-        Address network_layer_addr;
-        InternetDatagram data_sent;
-        IPSentInfo(Address addr, InternetDatagram &dgram) : network_layer_addr(addr), data_sent(dgram){};
+      public:
+        const Address network_layer_addr;
+        const InternetDatagram data_sent;
+        IPSentInfo(const Address addr, const InternetDatagram &dgram) : network_layer_addr(addr), data_sent(dgram){};
     };
 
     // ARP table
     std::map<Address, ARPMapping> arp_table;
     // ARP Packets queried, waiting IP address response until timeout
-    std::vector<ARPMapping> queried_arp;
+    std::map<Address, size_t> queried_arp;
     // IP Packets queried, waiting ARP packet recieved.
     std::vector<IPSentInfo> queried_ip;
 
