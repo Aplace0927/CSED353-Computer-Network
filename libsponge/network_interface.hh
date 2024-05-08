@@ -42,29 +42,39 @@ class NetworkInterface {
     //! outbound queue of Ethernet frames that the NetworkInterface wants sent
     std::queue<EthernetFrame> _frames_out{};
 
-    const size_t ARP_QUERY_TIME_TO_LIVE = 30'000;
+    const time_t ARP_QUERY_TIME_TO_LIVE = 30'000;
+    const time_t ARP_RESPN_TIME_TO_LIVE = 5'000;
 
     class ARPMapping {
       public:
         EthernetAddress link_layer_addr;
-        size_t addr_ttl;
+        time_t addr_ttl;
 
         ARPMapping() = default;
         ARPMapping(EthernetAddress addr, size_t ttl) : link_layer_addr(addr), addr_ttl(ttl){};
-        bool expired(size_t limit_ttl) { return limit_ttl < addr_ttl; }
+        bool expired() { return addr_ttl < 0; }
     };
 
     class IPSentInfo {
       public:
         Address network_layer_addr;
         InternetDatagram data_sent;
+
+        IPSentInfo() = default;
         IPSentInfo(const Address addr, const InternetDatagram &dgram) : network_layer_addr(addr), data_sent(dgram){};
     };
+
+    struct ARPMessage arp_craft(uint16_t opcode,
+                                EthernetAddress send_eth,
+                                uint32_t send_ip,
+                                EthernetAddress recv_eth,
+                                uint32_t recv_ip);
+    EthernetFrame eth_craft(uint16_t type, EthernetAddress src, EthernetAddress dst, BufferList payload);
 
     // ARP table
     std::map<uint32_t, ARPMapping> arp_table = {};
     // ARP Packets queried, waiting IP address response until timeout
-    std::map<uint32_t, size_t> queried_arp = {};
+    std::map<uint32_t, time_t> queried_arp = {};
     // IP Packets queried, waiting ARP packet recieved.
     std::vector<IPSentInfo> queried_ip = {};
 
