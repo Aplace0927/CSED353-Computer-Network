@@ -40,8 +40,16 @@ void Router::add_route(const uint32_t route_prefix,
 
 //! \param[in] dgram The datagram to be routed
 void Router::route_one_datagram(InternetDatagram &dgram) {
-    DUMMY_CODE(dgram);
-    // Your code here.
+    if (dgram.header().ttl == 0) {
+        return;
+    }
+    uint32_t mask = 0xFFFFFFFFU;
+    while (mask != 0) {
+        if (routing_table.find(dgram.header().dst & mask) != routing_table.end()) {
+            // Found routing!
+        }
+        mask <<= 1;  // 0xFFFFFFFF -> 0xFFFFFFFE -> ... -> 0x80000000 -> 0x00000000
+    }
 }
 
 void Router::route() {
