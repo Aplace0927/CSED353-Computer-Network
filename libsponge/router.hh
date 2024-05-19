@@ -3,9 +3,9 @@
 
 #include "network_interface.hh"
 
+#include <map>
 #include <optional>
 #include <queue>
-
 //! \brief A wrapper for NetworkInterface that makes the host-side
 //! interface asynchronous: instead of returning received datagrams
 //! immediately (from the `recv_frame` method), it stores them for
@@ -48,6 +48,13 @@ class Router {
     //! as specified by the route with the longest prefix_length that matches the
     //! datagram's destination address.
     void route_one_datagram(InternetDatagram &dgram);
+
+    struct RoutingTableElement {
+        uint8_t prefix_length = 0;
+        std::optional<Address> next_hop = {};
+        size_t interface_num = {};
+    };
+    std::map<uint32_t, RoutingTableElement> routing_table = {};
 
   public:
     //! Add an interface to the router

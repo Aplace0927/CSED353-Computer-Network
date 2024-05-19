@@ -16,7 +16,7 @@ using namespace std;
 // You will need to add private members to the class declaration in `router.hh`
 
 template <typename... Targs>
-void DUMMY_CODE(Targs &&... /* unused */) {}
+void DUMMY_CODE(Targs &&.../* unused */) {}
 
 //! \param[in] route_prefix The "up-to-32-bit" IPv4 address prefix to match the datagram's destination address against
 //! \param[in] prefix_length For this route to be applicable, how many high-order (most-significant) bits of the route_prefix will need to match the corresponding bits of the datagram's destination address?
@@ -29,8 +29,13 @@ void Router::add_route(const uint32_t route_prefix,
     cerr << "DEBUG: adding route " << Address::from_ipv4_numeric(route_prefix).ip() << "/" << int(prefix_length)
          << " => " << (next_hop.has_value() ? next_hop->ip() : "(direct)") << " on interface " << interface_num << "\n";
 
-    DUMMY_CODE(route_prefix, prefix_length, next_hop, interface_num);
-    // Your code here.
+    uint32_t route_masked = route_prefix & ~(static_cast<uint32_t>(0xFFFFFFFF) >> prefix_length);
+    if (routing_table.find(route_masked) == routing_table.end()) {  // Not in Routing table
+        routing_table[route_masked] = {prefix_length, next_hop, interface_num};
+    }
+    if (routing_table.find(route_masked)->second.prefix_length <= prefix_length) {  // Subset in Routing table
+        routing_table[route_masked] = {prefix_length, next_hop, interface_num};
+    }
 }
 
 //! \param[in] dgram The datagram to be routed
