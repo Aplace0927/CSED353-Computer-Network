@@ -46,7 +46,14 @@ void Router::route_one_datagram(InternetDatagram &dgram) {
     uint32_t mask = 0xFFFFFFFFU;
     while (mask != 0) {
         if (routing_table.find(dgram.header().dst & mask) != routing_table.end()) {
-            // Found routing!
+            RoutingTableElement rte = routing_table.find(dgram.header().dst & mask)->second;
+            if (rte.next_hop != std::nullopt) {
+                dgram.header().ttl--;
+                _interfaces[rte.interface_num].send_datagram(dgram, rte.next_hop.value());
+            } else {
+                dgram.header().ttl--;
+                _interfaces[rte.interface_num].send_datagram(dgram, Address::from_ipv4_numeric(dgram.header().dst));
+            }
         }
         mask <<= 1;  // 0xFFFFFFFF -> 0xFFFFFFFE -> ... -> 0x80000000 -> 0x00000000
     }
