@@ -31,32 +31,38 @@ void Router::add_route(const uint32_t route_prefix,
 
     uint32_t route_masked = route_prefix & ~(static_cast<uint32_t>(0xFFFFFFFF) >> prefix_length);
     if (routing_table.find(route_masked) == routing_table.end()) {  // Not in Routing table
-        routing_table[route_masked] = {prefix_length, next_hop, interface_num};
+        routing_table[route_masked] = {~(static_cast<uint32_t>(0xFFFFFFFF) >> prefix_length), next_hop, interface_num};
     }
-    if (routing_table.find(route_masked)->second.prefix_length <= prefix_length) {  // Subset in Routing table
-        routing_table[route_masked] = {prefix_length, next_hop, interface_num};
+    if (routing_table.find(route_masked)->second.prefix_mask <= prefix_length) {  // Subset in Routing table
+        routing_table[route_masked] = {~(static_cast<uint32_t>(0xFFFFFFFF) >> prefix_length), next_hop, interface_num};
     }
 }
 
 //! \param[in] dgram The datagram to be routed
 void Router::route_one_datagram(InternetDatagram &dgram) {
-    if (dgram.header().ttl == 0) {
+    if (dgram.header().ttl <= 1) {
         return;
     }
     uint32_t mask = 0xFFFFFFFFU;
-    while (mask != 0) {
-        if (routing_table.find(dgram.header().dst & mask) != routing_table.end()) {
+    while (true) {
+        if (routing_table.find(dgram.header().dst & mask) != routing_table.end() and
+            routing_table.find(dgram.header().dst & mask)->second.prefix_mask == mask) {
             RoutingTableElement rte = routing_table.find(dgram.header().dst & mask)->second;
-            if (rte.next_hop != std::nullopt) {
+            if (rte.next_hop.has_value()) {
                 dgram.header().ttl--;
                 _interfaces[rte.interface_num].send_datagram(dgram, rte.next_hop.value());
             } else {
                 dgram.header().ttl--;
                 _interfaces[rte.interface_num].send_datagram(dgram, Address::from_ipv4_numeric(dgram.header().dst));
             }
+            break;
+        }
+        if (mask == 0U) {
+            break;
         }
         mask <<= 1;  // 0xFFFFFFFF -> 0xFFFFFFFE -> ... -> 0x80000000 -> 0x00000000
     }
+    return;
 }
 
 void Router::route() {

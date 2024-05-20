@@ -50,7 +50,7 @@ class Router {
     void route_one_datagram(InternetDatagram &dgram);
 
     struct RoutingTableElement {
-        uint8_t prefix_length = 0;
+        uint32_t prefix_mask = 0U;
         std::optional<Address> next_hop = {};
         size_t interface_num = {};
     };
