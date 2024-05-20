@@ -33,7 +33,8 @@ void Router::add_route(const uint32_t route_prefix,
     if (routing_table.find(route_masked) == routing_table.end()) {  // Not in Routing table
         routing_table[route_masked] = {~(static_cast<uint32_t>(0xFFFFFFFF) >> prefix_length), next_hop, interface_num};
     }
-    if (routing_table.find(route_masked)->second.prefix_mask <= prefix_length) {  // Subset in Routing table
+    if (routing_table.find(route_masked)->second.prefix_mask <=
+        ~(static_cast<uint32_t>(0xFFFFFFFF) >> prefix_length)) {  // Subset in Routing table
         routing_table[route_masked] = {~(static_cast<uint32_t>(0xFFFFFFFF) >> prefix_length), next_hop, interface_num};
     }
 }
